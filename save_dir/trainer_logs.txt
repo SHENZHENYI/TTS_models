@@ -1,0 +1,42 @@
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Epoch: 1[0/6525] Elapsed: 18.490232944488525 Loss: nan All_losses: {'loss': tensor(nan), 'decoder_loss': tensor(nan), 'postnet_loss': tensor(nan), 'stop_loss': tensor(nan), 'amp_scaler': 1.0}
+Epoch: 1[1/6525] Elapsed: 18.790321111679077 Loss: nan All_losses: {'loss': tensor(nan), 'decoder_loss': tensor(nan), 'postnet_loss': tensor(nan), 'stop_loss': tensor(nan), 'amp_scaler': 1.0}
+Epoch: 1[2/6525] Elapsed: 18.4934720993042 Loss: nan All_losses: {'loss': tensor(nan), 'decoder_loss': tensor(nan), 'postnet_loss': tensor(nan), 'stop_loss': tensor(nan), 'amp_scaler': 1.0}
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Model has 28193665 parameters
+Epoch: 1[0/1632] Elapsed: 22.642081022262573 Loss: 46.6519 All_losses: {'loss': tensor(46.6519), 'decoder_loss': tensor(22.5327), 'postnet_loss': tensor(23.4051), 'stop_loss': tensor(0.7141), 'amp_scaler': 1.0}

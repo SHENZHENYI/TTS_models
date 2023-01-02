@@ -5,30 +5,33 @@ from torch.nn import functional as F
 class ConvBlock(nn.Module):
     def __init__(
         self,
-        channel_size,
-        kernel_size,
-        activation='linear'
+        in_channel_size,
+        out_channel_size=None,
+        kernel_size=5,
+        activation='relu'
     ):
         super(ConvBlock, self).__init__()
+        if out_channel_size is None:
+            out_channel_size = in_channel_size
         assert (kernel_size - 1) % 2 == 0
         padding = (kernel_size - 1) // 2
-        self.conv = nn.Conv1d(channel_size, channel_size, kernel_size, padding=padding)
-        self.bn = nn.BatchNorm1d(channel_size)
-        self.activation = activation
+        self.conv = nn.Conv1d(in_channel_size, out_channel_size, kernel_size, padding=padding)
+        self.bn = nn.BatchNorm1d(out_channel_size, momentum=0.1, eps=1e-5)
+        if activation == 'relu':
+            self.activation = nn.ReLU()
+        elif activation == 'tanh':
+            self.activation = nn.Tanh()
+        else:
+            self.activation = nn.Identity()
     
-        if activation is not None:
-            nn.init.xavier_uniform_(
-                self.conv.weight,
-                gain=nn.init.calculate_gain(activation))
+        #if activation is not None:
+        #    nn.init.xavier_uniform_(
+        #        self.conv.weight,
+        #        gain=nn.init.calculate_gain(activation))
 
     def forward(self, x):
-        x = self.bn(self.conv(x))
-        if self.activation == 'linear':
-            return x.relu()
-        elif self.activation == 'tanh':
-            return torch.tanh(x)
-        else:
-            return x
+        return self.activation(self.bn(self.conv(x)))
+
 
 class Linear(nn.Module):
     def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear'):
@@ -60,7 +63,7 @@ class LocationLayer(nn.Module):
             padding=(attention_kernel_size - 1) // 2,
             bias=False,
         )
-        self.location_dense = Linear(attention_n_filters, attention_dim, bias=False, init_gain="tanh")
+        self.location_dense = Linear(attention_n_filters, attention_dim, bias=False, w_init_gain="tanh")
 
     def forward(self, attention_cat):
         """
@@ -82,7 +85,7 @@ class LocationAwareAttention(nn.Module):
         self.query_layer = Linear(attn_rnn_dim, attn_dim, bias=False, w_init_gain='tanh')
         self.source_layer = Linear(encoder_dim, attn_dim, bias=False, w_init_gain='tanh')
         self.v = Linear(attn_dim, 1, bias=False)
-        self.location_layer = LocationLayer()
+        self.location_layer = LocationLayer(attn_dim)
         self.score_mask = -float('inf')
     
     def preprocess_source_inputs(self, x):
@@ -91,6 +94,11 @@ class LocationAwareAttention(nn.Module):
     def get_alignment_energies(self, query, processed_source, attn_weights_cat):
         """
         ei,j = wT tanh(W si−1 + V hj + Ufi,j)
+        Shapes:
+            - query: (B, attn_rnn_dim)
+            - processed_source: (B, encoder_len, attn_dim)
+            - attn_weights_cat: (B, 2, encoder_len)
+            - energies: (B, encoder_len)
         """
         processed_query = self.query_layer(query.unsqueeze(1))
         processed_attn_weights = self.location_layer(attn_weights_cat)
@@ -101,12 +109,18 @@ class LocationAwareAttention(nn.Module):
         """
         query: attention_rnn_hidden
         source: encoder_outputs
+
+        Shapes:
+            - attention_context: (B, encoder_dim)
+            - attention_weights: (B, encoder_len)
         """
         alignment = self.get_alignment_energies(
             query, processed_source, attn_weights_cat
         )
-        alignment = alignment.masked_fill(source_mask, self.score_mask)
+        alignment = alignment.masked_fill(~source_mask, self.score_mask)
+
         attention_weights = F.softmax(alignment, dim=1)
+
         attention_context = torch.bmm(attention_weights.unsqueeze(1), source)
         attention_context = attention_context.squeeze(1)
         return attention_context, attention_weights
