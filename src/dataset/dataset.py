@@ -8,6 +8,7 @@ import librosa
 from torch.utils.data import Dataset
 from src.utils.text import text_to_sequence
 from src.utils.audio import melspectrogram
+from src.utils.utils import prepare_data, prepare_tensor, prepare_stop_target
 
 class TTSDataset(Dataset):
     def __init__(
@@ -16,6 +17,7 @@ class TTSDataset(Dataset):
     ):
         self.samples = samples
         self.sample_rate = 22050
+        self.n_frames_per_step = 1
     
     def __len__(self,):
         return len(self.samples)
@@ -42,7 +44,7 @@ class TTSDataset(Dataset):
 
         mel = self.melspectrogram(wav)
 
-        token_ids = self.get_token_ids(raw_text)
+        token_ids = np.array(self.get_token_ids(raw_text))
 
         return {
             "raw_text": raw_text,
@@ -50,6 +52,37 @@ class TTSDataset(Dataset):
             "wav": wav,
             "mel": mel
         }
+
+    @staticmethod
+    def _sort_batch(batch, text_lengths):
+        text_lengths, ids_sorted_decreasing = torch.sort(torch.LongTensor(text_lengths), dim=0, descending=True)
+        batch = [batch[idx] for idx in ids_sorted_decreasing]
+        return batch, text_lengths, ids_sorted_decreasing
     
     def collate_fn(self, batch):
-        pass
+        token_ids_lengths = np.array([len(d["token_ids"]) for d in batch])
+        batch, token_ids_lengths, _ = self._sort_batch(batch, token_ids_lengths)
+        batch = {k: [dic[k] for dic in batch] for k in batch[0]}
+        token_ids = prepare_data(batch['token_ids'])
+        mel_lengths = [m.shape[1] for m in batch['mel']]
+        stop_targets = [np.array([0.0] * (mel_len - 1) + [1.0]) for mel_len in mel_lengths]
+        stop_targets = prepare_stop_target(stop_targets, out_steps=self.n_frames_per_step)
+        mel = prepare_tensor(batch['mel'], 1)
+        mel = mel.transpose(0, 2, 1)
+
+        wav = prepare_data(batch['wav'])
+
+        #token_ids_lengths = torch.LongTensor(token_ids_lengths)
+        token_ids = torch.LongTensor(token_ids)
+        mel = torch.FloatTensor(mel).contiguous()
+        wav = torch.FloatTensor(wav)
+
+        return {
+            'token_ids': token_ids,
+            'token_ids_lengths': token_ids_lengths,
+            'mel': mel,
+            'mel_lengths': mel_lengths,
+            'stop_targets': stop_targets,
+            'wav': wav,
+            'raw_text': batch['raw_text']
+        }
