@@ -210,20 +210,20 @@ class Trainer:
             for k, v in batch.items():
                 batch[k] = to_cuda(v, self.cfg.device)
             outputs, losses, elapsed = self.val_step(batch)
-            all_predictions.add_batch(outputs['labels'])
-            all_groudtruths.add_batch(batch['labels'])
+            #all_predictions.add_batch(outputs['labels'])
+            #all_groudtruths.add_batch(batch['labels'])
             val_losses_epoch.update(losses['loss'])
             if cur_step % self.cfg.print_freq == 0 or cur_step == (len(self.val_loader)-1):
                 self.logger.info(f"VALIDATION: [{cur_step}/{len(self.val_loader)}] Elapsed: {elapsed} Loss: {losses['loss']:.4f}")
-
+        
         epoch_time = time.time() - start
 
-        score = self.metric(torch.stack(all_groudtruths.all).numpy(),
-                            torch.stack(all_predictions.all).numpy())
-        if self.auxilary_metric is not None:
-            auxilary_score = self.auxilary_metric(torch.stack(all_groudtruths.all).numpy(),
-                                                  torch.stack(all_predictions.all).numpy())
-
+        score = val_losses_epoch.avg#self.metric(torch.stack(all_groudtruths.all).numpy(),
+        #torch.stack(all_predictions.all).numpy())
+        #if self.auxilary_metric is not None:
+        #    auxilary_score = self.auxilary_metric(torch.stack(all_groudtruths.all).numpy(),
+        #                                          torch.stack(all_predictions.all).numpy())
+        
         self.cur_score = score
         self.scores.append(score)
         self.val_losses.append(val_losses_epoch.avg)
@@ -239,7 +239,6 @@ class Trainer:
     ########################
     # Inference Methods
     ########################
-
     @staticmethod
     def _model_inference(model: nn.Module, batch: Dict) -> Dict:
         if hasattr(model, "inference"):
@@ -291,12 +290,17 @@ class Trainer:
                 self.best_score = self.cur_score
                 self.save_best_model()
                 self.logger.info(f'Epoch{epoch+1} - Save Best Score: {self.best_score:.4f}')
-
+            self.save_last_model()
 
     def save_best_model(self) -> None:
         torch.save({'model': self.model.state_dict(),
                     'score': self.best_score},
                     os.path.join(self.cfg.save_dir, f"{self.cfg.model.replace('/', '-')}_fold{self.fold}_best.pth"))
+
+    def save_last_model(self) -> None:
+        torch.save({'model': self.model.state_dict(),
+                    'score': self.best_score},
+                    os.path.join(self.cfg.save_dir, f"{self.cfg.model.replace('/', '-')}_fold{self.fold}_last.pth"))
 
     def _model_load_checkpoint(self, checkpoint_path: str) -> None:
         state = torch.load(checkpoint_path, map_location=torch.device('cpu'))

@@ -22,7 +22,7 @@ trainer = Trainer(
     hps,
     model,
     fold=0,
-    train_samples=metadata_train,
+    train_samples=metadata_val,
     val_samples=metadata_val,
     test_samples=None,
     device='cpu',

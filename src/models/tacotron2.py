@@ -193,3 +193,6 @@ class Tacotron2(BaseModel):
     def get_scheduler(self, optimizer: object, num_train_steps: int):
         return None
         #return  get_scheduler(self.cfg.scheduler, optimizer, num_train_steps, self.cfg.warmup_ratio, self.cfg.num_cycles)
+
+    def get_metric(self,):
+        return TacotronLoss()

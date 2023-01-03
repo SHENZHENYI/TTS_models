@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass, field
 @dataclass
 class hparams:
     # file paths
+    model: str = 'tacotron'
     save_dir: str = 'save_dir'
 
     # audio
