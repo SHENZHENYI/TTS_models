@@ -30,9 +30,11 @@ class PreNet(nn.Module):
     def __init__(
         self,
         in_size: int,
-        sizes: list[int]
+        sizes: list[int],
+        dropout_at_inference=False,
     ):
         super(PreNet, self).__init__()
+        self.dropout_at_inference = dropout_at_inference
         in_sizes = [in_size] + sizes[:-1]
         self.layers = nn.ModuleList([
             Linear(in_size, out_size) for in_size, out_size in zip(in_sizes, sizes)
@@ -40,7 +42,7 @@ class PreNet(nn.Module):
     
     def forward(self, x):
         for layer in self.layers:
-            x = layer(x).relu()
+            x = F.dropout(layer(x).relu(), p=0.5, training=self.training or self.dropout_at_inference)
         return x
 
 class PostNet(nn.Module):

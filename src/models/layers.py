@@ -23,6 +23,7 @@ class ConvBlock(nn.Module):
             self.activation = nn.Tanh()
         else:
             self.activation = nn.Identity()
+        self.dropout = nn.Dropout(p=0.5)
     
         #if activation is not None:
         #    nn.init.xavier_uniform_(
@@ -30,7 +31,7 @@ class ConvBlock(nn.Module):
         #        gain=nn.init.calculate_gain(activation))
 
     def forward(self, x):
-        return self.activation(self.bn(self.conv(x)))
+        return self.dropout(self.activation(self.bn(self.conv(x))))
 
 
 class Linear(nn.Module):
