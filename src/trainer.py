@@ -262,7 +262,7 @@ class Trainer:
             for k, v in batch.items():
                 batch[k] = to_cuda(v, self.cfg.device)
             outputs = self.inference_step(batch)
-            all_predictions.add_batch(outputs['labels'])
+            all_predictions.add_batch(outputs['model_outputs'])
 
         self.logger.info(f'Done inference. Took {time.time() - start} seconds.')
         torch.cuda.empty_cache()

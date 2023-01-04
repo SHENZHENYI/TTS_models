@@ -2,10 +2,10 @@ import torch
 from torch import nn
 from torch.optim import AdamW
 import numpy as np
-from transformers import AutoConfig, AutoModel, AutoTokenizer, \
-                         get_cosine_schedule_with_warmup, \
+from transformers import get_cosine_schedule_with_warmup, \
                          get_cosine_with_hard_restarts_schedule_with_warmup, \
                          get_linear_schedule_with_warmup
+                         
 from typing import Dict, List, Tuple
 
 def to_cuda(x: torch.Tensor, device: str) -> torch.Tensor:

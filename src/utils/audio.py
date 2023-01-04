@@ -9,10 +9,8 @@ _mel_basis = None
 
 
 def load_wav(path):
-    sr, wav = wavfile.read(path)
-    assert sr == hps.sample_rate
-    return normalize(wav/MAX_WAV_VALUE)*0.95
-
+    wav, sr = librosa.load(path, sr=hps.sample_rate)
+    return wav 
 
 def save_wav(wav, path):
     wav *= MAX_WAV_VALUE

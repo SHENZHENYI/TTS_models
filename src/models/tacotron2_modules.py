@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from typing import List
 
 from src.models.layers import ConvBlock, Linear, LocationAwareAttention
 
@@ -30,7 +31,7 @@ class PreNet(nn.Module):
     def __init__(
         self,
         in_size: int,
-        sizes: list[int],
+        sizes: List[int],
         dropout_at_inference=False,
     ):
         super(PreNet, self).__init__()

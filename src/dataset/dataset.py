@@ -29,6 +29,9 @@ class TTSDataset(Dataset):
         wav, sr = librosa.load(filename, sr=self.sample_rate)
         return wav 
     
+    def load_melspectrogram(self, filename):
+        return np.load(filename)
+    
     def melspectrogram(self, wav):
         return melspectrogram(wav)
     
@@ -42,7 +45,7 @@ class TTSDataset(Dataset):
 
         wav = np.asarray(self.load_wav(item['audio_file']))
 
-        mel = self.melspectrogram(wav)
+        mel = self.load_melspectrogram(item['mel_file'])
 
         token_ids = np.array(self.get_token_ids(raw_text))
 
