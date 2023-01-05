@@ -31,7 +31,10 @@ class ConvBlock(nn.Module):
         #        gain=nn.init.calculate_gain(activation))
 
     def forward(self, x):
-        return self.dropout(self.activation(self.bn(self.conv(x))))
+        x = self.activation(self.bn(self.conv(x)))
+        if self.dropout is not None:
+            return self.dropout(x)
+        return x
 
 
 class Linear(nn.Module):
@@ -85,9 +88,9 @@ class LocationAwareAttention(nn.Module):
         super(LocationAwareAttention, self).__init__()
         self.query_layer = Linear(attn_rnn_dim, attn_dim, bias=False, w_init_gain='tanh')
         self.source_layer = Linear(encoder_dim, attn_dim, bias=False, w_init_gain='tanh')
-        self.v = Linear(attn_dim, 1, bias=False)
+        self.v = Linear(attn_dim, 1, bias=True)
         self.location_layer = LocationLayer(attn_dim)
-        self.score_mask = -float('inf')
+        self.mask_value = -float('inf')
     
     def preprocess_source_inputs(self, x):
         return self.source_layer(x)
@@ -118,12 +121,13 @@ class LocationAwareAttention(nn.Module):
         alignment = self.get_alignment_energies(
             query, processed_source, attn_weights_cat
         )
-        alignment = alignment.masked_fill(~source_mask, self.score_mask)
+        alignment = alignment.masked_fill(~source_mask, self.mask_value)
 
-        attention_weights = F.softmax(alignment, dim=1)
+        attention_weights = F.softmax(alignment, dim=-1)
 
         attention_context = torch.bmm(attention_weights.unsqueeze(1), source)
         attention_context = attention_context.squeeze(1)
+
         return attention_context, attention_weights
 
 

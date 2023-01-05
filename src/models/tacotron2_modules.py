@@ -77,7 +77,7 @@ class Decoder(nn.Module):
         p_attn_dropout = 0.1,
         p_decoder_dropout = 0.1,
         max_decoder_steps = 1000,
-        stop_threshold = 0.5
+        stop_threshold = 0.99999
     ):
         super(Decoder, self).__init__()
         self.max_decoder_steps = max_decoder_steps
@@ -159,7 +159,6 @@ class Decoder(nn.Module):
             self.attn_weights_cum.unsqueeze(1)),
             dim = 1
         )
-
         self.context, self.attn_weights = self.attention(
             self.attn_rnn_hidden, self.encoder_outputs, self.processed_encoder_outputs,
             attn_weights_cat, self.encoder_lengths

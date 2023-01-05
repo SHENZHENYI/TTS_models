@@ -39,12 +39,12 @@ class hparams:
     # training
     device: str = 'cuda'
     epoch: int = 100
-    batch_size: int = 32
-    num_loader_workers: int = 4
-    learning_rate: float = 1e-3
+    batch_size: int = 64
+    num_loader_workers: int = 8
+    learning_rate: float = 1e-4
     betas = [0.9, 0.999]
     eps: float = 1e-6
     weight_decay: float = 1e-6
     apex: bool = True
-    max_grad_norm: float = 5.
-    print_freq: int = 1
+    max_grad_norm: float = 25.
+    print_freq: int = 10

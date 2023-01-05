@@ -31,20 +31,29 @@ trainer = Trainer(
     hps,
     model,
     fold=0,
+    train_samples=metadata_val[:32],
+    val_samples=metadata_val[:32],
+    test_samples=None,
+    device='cpu',
+    checkpoint_path=None
+)
+trainer.fit()
+"""
+inferencer = Trainer(
+    hps,
+    model,
+    fold=0,
     train_samples=None, #metadata_val[:5],
     val_samples=None,#metadata_val[:5],
-    test_samples=metadata_val[:5],
+    test_samples=metadata_val[:2],
     device='cpu',
     checkpoint_path=checkpoint_path
 )
 
-
-preds = trainer.inference()
-print(preds.all[0].shape)
-plt.imshow(preds.all[0].T.numpy(), cmap='hot', interpolation='nearest')
+preds = inferencer.inference()
+#print(preds['stop_tokens'].all[0])
+#print(preds['alignments'].all[0].shape)
+plt.imshow(preds['alignments'].all[0].T.numpy(), cmap='hot', interpolation='nearest')
 plt.savefig('./tmp_pred.png')
+"""
 
-
-
-
-#trainer.fit()

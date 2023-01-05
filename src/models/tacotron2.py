@@ -131,6 +131,7 @@ class Tacotron2(BaseModel):
         decoder_outputs, stop_tokens, alignments = self.decoder.inference(encoder_outputs, text_masks)
         postnet_outputs = self.postnet(decoder_outputs)
         postnet_outputs = decoder_outputs + postnet_outputs
+
         decoder_outputs, postnet_outputs = self._reshape_outputs(decoder_outputs, postnet_outputs)
         outputs = {
             "model_outputs": postnet_outputs,

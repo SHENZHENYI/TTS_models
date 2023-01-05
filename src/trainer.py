@@ -8,6 +8,7 @@ import pandas as pd
 from typing import Callable, Dict, List, Tuple, Union
 
 from src.trainer_utils import AverageMeter, KeepAll, to_cuda, count_parameters
+from src.utils.plot import plot_alignment, plot_spectrogram, plot_stop_tokens
 
 class Trainer:
     """wrap the training process
@@ -165,7 +166,11 @@ class Trainer:
         for cur_step, batch in enumerate(self.train_loader):
             for k, v in batch.items():
                 batch[k] = to_cuda(v, self.cfg.device)
-            _, losses, elapsed = self.train_step(batch)
+            outputs, losses, elapsed = self.train_step(batch)
+
+            plot_spectrogram(outputs['model_outputs'][0].detach().cpu().numpy(), './tmp_pred.png')
+            plot_alignment(outputs['alignments'][0].T.detach().cpu().numpy(), './tmp_pred_align.png')
+            plot_stop_tokens(outputs['stop_tokens'][0].detach().cpu().numpy(), './tmp_pred_stops.png')
 
             train_losses_epoch.update(losses['loss'])
             if cur_step % self.cfg.print_freq == 0 or cur_step == (len(self.train_loader)-1):
@@ -255,14 +260,20 @@ class Trainer:
     def inference(self) -> Dict:
         self.test_loader = self.get_test_loader(self.test_samples, self.model, self.tokenizer)
         self.model.eval()
-        all_predictions = KeepAll()
+        all_predictions = {
+            'model_outputs': KeepAll(),
+            "decoder_outputs": KeepAll(),
+            "alignments": KeepAll(),
+            "stop_tokens": KeepAll(),
+        }
 
         start = time.time()
         for cur_step, batch in enumerate(self.test_loader):
             for k, v in batch.items():
                 batch[k] = to_cuda(v, self.cfg.device)
             outputs = self.inference_step(batch)
-            all_predictions.add_batch(outputs['model_outputs'])
+            for k, v in outputs.items():
+                all_predictions[k].add_batch(v)
 
         self.logger.info(f'Done inference. Took {time.time() - start} seconds.')
         torch.cuda.empty_cache()
