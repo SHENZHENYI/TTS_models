@@ -24,6 +24,7 @@ class Encoder(nn.Module):
         x = x.transpose(1, 2)
         x = nn.utils.rnn.pack_padded_sequence(x, input_lengths.cpu(), batch_first=True, enforce_sorted=False)
         x, _ = self.lstm(x)
+        self.lstm.flatten_parameters()
         x, _ = nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
         return x
 
@@ -163,14 +164,15 @@ class Decoder(nn.Module):
             self.attn_rnn_hidden, self.encoder_outputs, self.processed_encoder_outputs,
             attn_weights_cat, self.encoder_lengths
         )
-
         self.attn_weights_cum += self.attn_weights
+
         # run the decoder rnn block
         decoder_rnn_input = torch.cat((self.attn_rnn_hidden, self.context), dim=-1)
         self.decoder_rnn_hidden, self.decoder_rnn_cell = self.decoder_rnn(
             decoder_rnn_input, (self.decoder_rnn_hidden, self.decoder_rnn_cell)
         )
         self.decoder_rnn_hidden = F.dropout(self.decoder_rnn_hidden, self.p_decoder_dropout, self.training)
+        
         # get outputs
         decoder_hidden_context = torch.cat(
             (self.decoder_rnn_hidden, self.context), dim=1

@@ -84,13 +84,16 @@ class LocationAwareAttention(nn.Module):
         attn_rnn_dim,
         attn_dim,
         encoder_dim,
+        use_location_attention,
     ):
         super(LocationAwareAttention, self).__init__()
         self.query_layer = Linear(attn_rnn_dim, attn_dim, bias=False, w_init_gain='tanh')
         self.source_layer = Linear(encoder_dim, attn_dim, bias=False, w_init_gain='tanh')
         self.v = Linear(attn_dim, 1, bias=True)
-        self.location_layer = LocationLayer(attn_dim)
+        if use_location_attention:
+            self.location_layer = LocationLayer(attn_dim)
         self.mask_value = -float('inf')
+        self.use_location_attention = use_location_attention
     
     def preprocess_source_inputs(self, x):
         return self.source_layer(x)
@@ -105,9 +108,13 @@ class LocationAwareAttention(nn.Module):
             - energies: (B, encoder_len)
         """
         processed_query = self.query_layer(query.unsqueeze(1))
-        processed_attn_weights = self.location_layer(attn_weights_cat)
-        energies = self.v(torch.tanh(processed_query + processed_source + processed_attn_weights))
+        if self.use_location_attention:
+            processed_attn_weights = self.location_layer(attn_weights_cat)
+            energies = self.v(torch.tanh(processed_query + processed_source + processed_attn_weights))
+        else:
+            energies = self.v(torch.tanh(processed_query + processed_source))
         return energies.squeeze(2)
+
 
     def forward(self, query, source, processed_source, attn_weights_cat, source_mask):
         """
@@ -122,12 +129,9 @@ class LocationAwareAttention(nn.Module):
             query, processed_source, attn_weights_cat
         )
         alignment = alignment.masked_fill(~source_mask, self.mask_value)
-
         attention_weights = F.softmax(alignment, dim=-1)
-
         attention_context = torch.bmm(attention_weights.unsqueeze(1), source)
+
         attention_context = attention_context.squeeze(1)
 
         return attention_context, attention_weights
-
-

@@ -66,13 +66,14 @@ class Tacotron2(BaseModel):
         emb = self.embeddings(text).transpose(1, 2)
         encoder_outputs = self.encoder(emb, text_lengths)
         encoder_outputs = encoder_outputs * text_masks.unsqueeze(2).expand_as(encoder_outputs)
-
+        
         # decoder side
         decoder_outputs, stop_tokens, alignments = self.decoder(
             encoder_outputs,
             mel,
             text_masks,
         )
+
         if mel_lengths is not None:
             decoder_outputs = decoder_outputs * mel_masks.unsqueeze(1).expand_as(decoder_outputs)
 
@@ -117,6 +118,10 @@ class Tacotron2(BaseModel):
         """ Inference step
         forward process without teacher forcing
         """
+        print(batch)
+        print(batch['mel'].max())
+        print(batch['stop_targets'].shape)
+        print(len(batch['raw_text'][0]))
         # get inputs
         text = batch['token_ids']
         text_lengths = batch['token_ids_lengths']

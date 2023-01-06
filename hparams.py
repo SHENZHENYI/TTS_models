@@ -37,11 +37,11 @@ class hparams:
     postnet_n_convs = 5
 
     # training
-    device: str = 'cuda'
-    epoch: int = 100
-    batch_size: int = 64
-    num_loader_workers: int = 8
-    learning_rate: float = 1e-4
+    device: str = 'cpu'
+    epoch: int = 2
+    batch_size: int = 8
+    num_loader_workers: int = 0
+    learning_rate: float = 1e-3
     betas = [0.9, 0.999]
     eps: float = 1e-6
     weight_decay: float = 1e-6

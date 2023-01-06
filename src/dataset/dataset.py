@@ -73,14 +73,14 @@ class TTSDataset(Dataset):
         mel = prepare_tensor(batch['mel'], 1)
         mel = mel.transpose(0, 2, 1)
 
-        wav = prepare_data(batch['wav'])
+        wav = None #prepare_data(batch['wav'])
 
         #token_ids_lengths = torch.LongTensor(token_ids_lengths)
         token_ids = torch.LongTensor(token_ids)
         token_ids_lengths = torch.LongTensor(token_ids_lengths)
         mel = torch.FloatTensor(mel).contiguous()
         mel_lengths = torch.LongTensor(mel_lengths)
-        wav = torch.FloatTensor(wav)
+        #wav = torch.FloatTensor(wav)
         stop_targets = torch.FloatTensor(stop_targets)
 
         return {

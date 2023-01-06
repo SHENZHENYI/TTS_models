@@ -168,6 +168,7 @@ class Trainer:
                 batch[k] = to_cuda(v, self.cfg.device)
             outputs, losses, elapsed = self.train_step(batch)
 
+            plot_spectrogram(batch['mel'][0].detach().cpu().numpy(), './tmp_gt_mel.png')
             plot_spectrogram(outputs['model_outputs'][0].detach().cpu().numpy(), './tmp_pred_postnet.png')
             plot_spectrogram(outputs['decoder_outputs'][0].detach().cpu().numpy(), './tmp_pred_decoder.png')
             plot_alignment(outputs['alignments'][0].T.detach().cpu().numpy(), './tmp_pred_align.png')
