@@ -25,19 +25,23 @@ metadata_train, metadata_val = load_samples(
     data_dir, 'metadata.csv', True, 50
 )
 
+
 model = Tacotron2(hps)
 
 trainer = Trainer(
     hps,
     model,
     fold=0,
-    train_samples=metadata_val[:8],
-    val_samples=metadata_val[:8],
+    train_samples=metadata_train,
+    val_samples=metadata_val,
     test_samples=None,
     device='cpu',
     checkpoint_path=None
 )
+
 trainer.fit()
+
+
 """
 inferencer = Trainer(
     hps,

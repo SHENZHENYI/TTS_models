@@ -100,6 +100,7 @@ class Tacotron2(BaseModel):
         text_lengths = batch['token_ids_lengths']
         mel_inputs = batch['mel']
         mel_lengths = batch['mel_lengths']
+        mel_masks = self.compute_masks(mel_lengths)
         stop_targets = batch['stop_targets']
 
         outputs = self.forward(text_input, text_lengths, mel_inputs, mel_lengths)
@@ -107,6 +108,8 @@ class Tacotron2(BaseModel):
         loss_dict = criterion(
             outputs['model_outputs'],
             outputs['decoder_outputs'],
+            mel_masks,
+            mel_lengths,
             outputs['stop_tokens'],
             mel_inputs,
             stop_targets
@@ -118,10 +121,6 @@ class Tacotron2(BaseModel):
         """ Inference step
         forward process without teacher forcing
         """
-        print(batch)
-        print(batch['mel'].max())
-        print(batch['stop_targets'].shape)
-        print(len(batch['raw_text'][0]))
         # get inputs
         text = batch['token_ids']
         text_lengths = batch['token_ids_lengths']

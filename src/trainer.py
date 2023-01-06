@@ -168,11 +168,14 @@ class Trainer:
                 batch[k] = to_cuda(v, self.cfg.device)
             outputs, losses, elapsed = self.train_step(batch)
 
-            plot_spectrogram(batch['mel'][0].detach().cpu().numpy(), './tmp_gt_mel.png')
-            plot_spectrogram(outputs['model_outputs'][0].detach().cpu().numpy(), './tmp_pred_postnet.png')
-            plot_spectrogram(outputs['decoder_outputs'][0].detach().cpu().numpy(), './tmp_pred_decoder.png')
-            plot_alignment(outputs['alignments'][0].T.detach().cpu().numpy(), './tmp_pred_align.png')
-            plot_stop_tokens(outputs['stop_tokens'][0].detach().cpu().numpy(), './tmp_pred_stops.png')
+            plot_spectrogram(batch['mel'][-1].detach().cpu().numpy(), './tmp_gt_mel.png')
+            plot_spectrogram(outputs['model_outputs'][-1].detach().cpu().numpy(), './tmp_pred_postnet.png')
+            plot_spectrogram(outputs['decoder_outputs'][-1].detach().cpu().numpy(), './tmp_pred_decoder.png')
+            plot_alignment(outputs['alignments'][-1].T.detach().cpu().numpy(), './tmp_pred_align.png')
+            plot_stop_tokens(outputs['stop_tokens'][-1].detach().cpu().numpy(), './tmp_pred_stops.png')
+            print('alignments', outputs['alignments'][-1].shape)
+            print('token_ids_lengths', batch['token_ids_lengths'])
+            print('mel', batch['mel_lengths'])
 
             train_losses_epoch.update(losses['loss'])
             if cur_step % self.cfg.print_freq == 0 or cur_step == (len(self.train_loader)-1):
