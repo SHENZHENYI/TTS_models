@@ -64,9 +64,7 @@ class Trainer:
 
         log_file = os.path.join(self.cfg.save_dir, f"trainer_logs.txt")
         self.logger = self.get_logger(log_file)
-
         self.logger.info(f'Model has {count_parameters(self.model)} parameters')
-
 
     @staticmethod
     def get_logger(log_file: str):
@@ -132,13 +130,19 @@ class Trainer:
         with torch.cuda.amp.autocast(enabled=self.cfg.apex):
             outputs_dict, losses_dict = self._model_train_step(model, batch, criterion)
 
-        scaler.scale(losses_dict["loss"]).backward()
+        if scaler is not None:
+            scaler.scale(losses_dict["loss"]).backward()
+        else:
+            losses_dict["loss"].backward()
 
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), self.cfg.max_grad_norm)
 
-        scaler.step(optimizer)
-        scaler.update()
-        losses_dict["amp_scaler"] = scaler.get_scale()
+        if scaler is not None:
+            scaler.step(optimizer)
+            scaler.update()
+            losses_dict["amp_scaler"] = scaler.get_scale()
+        else:
+            optimizer.step()
 
         if scheduler is not None:
             scheduler.step()
@@ -179,7 +183,7 @@ class Trainer:
 
             train_losses_epoch.update(losses['loss'])
             if cur_step % self.cfg.print_freq == 0 or cur_step == (len(self.train_loader)-1):
-                self.logger.info(f"Epoch: {self.epochs_done+1}[{cur_step}/{len(self.train_loader)}] Elapsed: {elapsed} Loss: {losses['loss']:.4f} All_losses: {losses}")
+                self.logger.info(f"Epoch: {self.epochs_done+1}[{cur_step}/{len(self.train_loader)}][{self.steps_done} steps] Elapsed: {elapsed} Loss: {losses['loss']:.4f} All_losses: {losses}")
 
         self.train_losses.append(train_losses_epoch.avg)
         epoch_time = time.time() - start
@@ -369,7 +373,6 @@ class Trainer:
     ########################
     # Helper Functions
     ########################
-
     @staticmethod
     def _detach_loss_dict(loss_dict: Dict) -> Dict:
         loss_dict_detached = {}

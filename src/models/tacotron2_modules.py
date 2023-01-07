@@ -50,15 +50,15 @@ class PreNet(nn.Module):
 class PostNet(nn.Module):
     def __init__(
         self,
-        channels,
+        in_channels,
         n_convs
     ):
         super(PostNet, self).__init__()
         self.convs = nn.ModuleList()
-        self.convs.append(ConvBlock(channels, 512, kernel_size=5, activation='tanh'))
+        self.convs.append(ConvBlock(in_channels, 512, kernel_size=5, activation='tanh'))
         for _ in range(1, n_convs-1):
             self.convs.append(ConvBlock(512, 512, kernel_size=5, activation='tanh'))
-        self.convs.append(ConvBlock(512, channels, kernel_size=5, activation=None))
+        self.convs.append(ConvBlock(512, in_channels, kernel_size=5, activation=None))
 
     def forward(self, x):
         for conv in self.convs:
@@ -69,8 +69,8 @@ class Decoder(nn.Module):
     def __init__(
         self,
         encoder_dim,
-        n_frames_per_step,
-        frame_dim,
+        n_frames_per_step = 1,
+        frame_dim = 80,
         attn_rnn_dim = 1024,
         decoder_rnn_dim = 1024,
         prenet_dim = 256,
@@ -78,7 +78,7 @@ class Decoder(nn.Module):
         p_attn_dropout = 0.1,
         p_decoder_dropout = 0.1,
         max_decoder_steps = 1000,
-        stop_threshold = 0.99999
+        stop_threshold = 0.5
     ):
         super(Decoder, self).__init__()
         self.max_decoder_steps = max_decoder_steps
@@ -151,9 +151,9 @@ class Decoder(nn.Module):
         self.attn_rnn_hidden = F.dropout(
             self.attn_rnn_hidden, self.p_attn_dropout, self.training
         )
-        self.attn_rnn_cell = F.dropout(
-            self.attn_rnn_cell, self.p_attn_dropout, self.training
-        )
+        #self.attn_rnn_cell = F.dropout(
+        #    self.attn_rnn_cell, self.p_attn_dropout, self.training
+        #)
         # run the attention block
         attn_weights_cat = torch.cat(
             (self.attn_weights.unsqueeze(1),

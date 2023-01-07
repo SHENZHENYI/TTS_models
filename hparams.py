@@ -48,3 +48,4 @@ class hparams:
     apex: bool = True
     max_grad_norm: float = 25.
     print_freq: int = 10
+    scheduler: str = 'step_tacotron'

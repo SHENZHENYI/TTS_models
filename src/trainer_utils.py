@@ -75,6 +75,23 @@ def get_scheduler(scheduler: str,
             num_training_steps=num_train_steps,
             last_epoch=-1,
         )
+    elif scheduler=='step_tacotron':
+        gradual_learning_rates = (
+            [0, 1e-1],
+            [2e4, 5e-1],
+            [4e5, 3e-1],
+            [6e4, 1e-1],
+            [8e4, 5e-2],
+        )
+        def stepwise_lr_change(step):
+            last_lr = gradual_learning_rates[0][-1]
+            for step_lr_set in gradual_learning_rates[1:]:
+                step_thres, tar_lr = step_lr_set
+                if step > step_thres:
+                    last_lr = tar_lr
+            return last_lr
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, stepwise_lr_change)
+
     return scheduler
 
 def mcrmse(targets: np.array, predictions: np.array) -> Tuple[np.float32, List[np.float32]]:
