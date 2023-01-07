@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 # get the data
 data_dir = "data"
-checkpoint_path = "save_dir/tacotron_fold0_last.pth"
+checkpoint_path = "save_dir/tacotron_fold0_last_0107.pth"
 #!wget -O $output_path/LJSpeech-1.1.tar.bz2 https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2 
 #!tar -xf $output_path/LJSpeech-1.1.tar.bz2 -C $output_path
 

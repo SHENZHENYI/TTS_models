@@ -88,7 +88,7 @@ class LocationAwareAttention(nn.Module):
         attn_rnn_dim,
         attn_dim,
         encoder_dim,
-        use_location_attention=False,
+        use_location_attention=True,
     ):
         super(LocationAwareAttention, self).__init__()
         self.query_layer = Linear(attn_rnn_dim, attn_dim, bias=False, w_init_gain='tanh')
@@ -136,7 +136,6 @@ class LocationAwareAttention(nn.Module):
         attention_weights = F.softmax(alignment, dim=-1)
 
         attention_context = torch.bmm(attention_weights.unsqueeze(1), source)
-
         attention_context = attention_context.squeeze(1)
 
         return attention_context, attention_weights

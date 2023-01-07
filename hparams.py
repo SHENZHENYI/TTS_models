@@ -50,7 +50,7 @@ class hparams:
     scheduler: str = 'step_tacotron'
     warmup_ratio = None
     num_cycles = None
-    shuffle: bool = False
+    shuffle: bool = True
 
     """
     num_freq: int = 513

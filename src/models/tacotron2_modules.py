@@ -39,7 +39,7 @@ class PreNet(nn.Module):
         self.dropout_at_inference = dropout_at_inference
         in_sizes = [in_size] + sizes[:-1]
         self.layers = nn.ModuleList([
-            Linear(in_size, out_size) for in_size, out_size in zip(in_sizes, sizes)
+            Linear(in_size, out_size, bias=False) for in_size, out_size in zip(in_sizes, sizes)
         ])
     
     def forward(self, x):
@@ -142,11 +142,14 @@ class Decoder(nn.Module):
 
 
     def decode(self, decoder_input):
+        #print('decoder_input', decoder_input.shape, decoder_input[-1])
         attn_rnn_input = torch.cat((decoder_input, self.context), dim=-1)
 
         # run attn_rnn
         self.attn_rnn_hidden, self.attn_rnn_cell = self.attention_rnn(
             attn_rnn_input, (self.attn_rnn_hidden, self.attn_rnn_cell))
+
+        #print(self.attn_rnn_hidden.shape, self.attn_rnn_hidden[0, :10])
 
         self.attn_rnn_hidden = F.dropout(
             self.attn_rnn_hidden, self.p_attn_dropout, self.training
@@ -165,6 +168,8 @@ class Decoder(nn.Module):
             attn_weights_cat, self.encoder_lengths
         )
         self.attn_weights_cum += self.attn_weights
+
+        #print(self.attn_weights.shape, self.attn_weights[0,])
 
         # run the decoder rnn block
         decoder_rnn_input = torch.cat((self.attn_rnn_hidden, self.context), dim=-1)
@@ -203,13 +208,19 @@ class Decoder(nn.Module):
         decoder_input = self.get_go_frame(encoder_outputs).unsqueeze(0)
         decoder_inputs = self._reshape_decoder_inputs(decoder_inputs)
         decoder_inputs = torch.cat((decoder_input, decoder_inputs), dim=0) # time first now
+        #print('decoder_inputs', decoder_inputs.shape)
+        #raw_decoder_inputs = decoder_inputs
         decoder_inputs = self.prenet(decoder_inputs)
+        #print('decoder_inputs af', decoder_inputs.shape)
+        #print('encoder_outputs', encoder_outputs.shape)
 
         self._init_states(encoder_outputs, encoder_lengths)
 
         mel_outputs, alignments, stop_tokens = [], [], []
         while len(mel_outputs) < decoder_inputs.size(0)-1:
+            #print(len(mel_outputs))
             decoder_input = decoder_inputs[len(mel_outputs)]
+            #print('raw_decoder_inputs', raw_decoder_inputs[len(mel_outputs)][-1,])
             mel_output, attention_weights, stop_token = self.decode(decoder_input)
             mel_outputs.append(mel_output.squeeze(1))
             alignments.append(attention_weights)

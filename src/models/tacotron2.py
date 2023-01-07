@@ -100,7 +100,7 @@ class Tacotron2(BaseModel):
         """
         text_input = batch['token_ids']
         text_lengths = batch['token_ids_lengths']
-        mel_inputs = batch['mel']
+        mel_inputs = batch['mel'] # (B, T, 80)
         mel_lengths = batch['mel_lengths']
         mel_masks = self.compute_masks(mel_lengths)
         stop_targets = batch['stop_targets']
