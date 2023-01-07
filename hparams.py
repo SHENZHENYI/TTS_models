@@ -9,15 +9,14 @@ class hparams:
     # audio
     num_mels: int = 80
     n_frames_per_step: int = 1
-    num_freq: int = 513
+    max_wav_value: float = 32768.0
     sample_rate: int = 22050
-    frame_shift: int = 256
-    frame_length: int = 1024
-    fmin: int = 125
-    fmax: int = 7600
-    power: float = 1.5
-    gl_iters: int = 30
-
+    filter_length: int = 1024
+    hop_length: int = 256
+    win_length: int = 1024
+    mel_fmin: float = 0.0
+    mel_fmax: float = 7000.0
+    
     # model
     # encoder
     text_vocab_size: int = 148
@@ -49,3 +48,17 @@ class hparams:
     max_grad_norm: float = 25.
     print_freq: int = 10
     scheduler: str = 'step_tacotron'
+    warmup_ratio = None
+    num_cycles = None
+    shuffle: bool = False
+
+    """
+    num_freq: int = 513
+    sample_rate: int = 22050
+    frame_shift: int = 256
+    frame_length: int = 1024
+    fmin: int = 125
+    fmax: int = 7600
+    power: float = 1.5
+    gl_iters: int = 30
+    """

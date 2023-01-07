@@ -3,8 +3,11 @@ import numpy as np
 from typing import Union, Tuple, List, Dict
 
 from src.utils.audio import melspectrogram, load_wav
+from src.dataset.dataset import *
+from src.models.layers import TacotronSTFT
+from src.dataset.utils import load_mel_from_wav
 
-def prepare_meldata(root_path):
+def prepare_meldata(root_path, hps):
     """Create a folder of mel80 decoded from wavs"""
     wav_dir = os.path.join(root_path, "wavs")
     os.makedirs(os.path.join(root_path, "mels"), exist_ok=True)
@@ -13,6 +16,20 @@ def prepare_meldata(root_path):
         wav = np.asarray(load_wav(os.path.join(wav_dir, f)))
         mel = melspectrogram(wav)
         np.save(mel_path, mel)
+
+def prepare_meldata_nvidia(root_path, hps):
+    """Create a folder of mel80 decoded from wavs"""
+    stft = TacotronSTFT(
+            hps.filter_length, hps.hop_length, hps.win_length,
+            hps.num_mels, hps.sample_rate, hps.mel_fmin,
+            hps.mel_fmax)
+    wav_dir = os.path.join(root_path, "wavs")
+    os.makedirs(os.path.join(root_path, "mels"), exist_ok=True)
+    for f in os.listdir(wav_dir):
+        mel_path = os.path.join(root_path, "mels", f.split('.')[0]+'.npy')
+        mel = load_mel_from_wav(os.path.join(wav_dir, f), stft, hps.max_wav_value).numpy()
+        np.save(mel_path, mel)
+        print(f'Saved {f}')
 
 def parse_metadata(root_path, metadata_path: str):
     items = []

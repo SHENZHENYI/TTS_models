@@ -1,3 +1,7 @@
+"""
+largely adopted from https://github.com/coqui-ai/TTS/blob/f814d523945fc43071d037a1fb9edcdad99949b2/TTS/tts/datasets/dataset.py
+"""
+
 import os
 import random
 from typing import Dict, List, Union
@@ -18,6 +22,10 @@ class TTSDataset(Dataset):
         self.samples = samples
         self.sample_rate = 22050
         self.n_frames_per_step = 1
+        self.max_audio_len = 8 * 22050
+        self.min_audio_len = 1 * 22050
+        self.max_text_len = float('inf')
+        self.min_text_len = 1
     
     def __len__(self,):
         return len(self.samples)
@@ -92,3 +100,83 @@ class TTSDataset(Dataset):
             'wav': wav,
             'raw_text': batch['raw_text']
         }
+    
+    @staticmethod
+    def _compute_lengths(samples):
+        """ Compute audio and text lengths
+        """
+        new_samples = []
+        for item in samples:
+            audio_length = os.path.getsize(item["audio_file"]) / 16 * 8  # assuming 16bit audio
+            text_lenght = len(item["text"])
+            item["audio_length"] = int(audio_length)
+            item["text_length"] = int(text_lenght)
+            new_samples += [item]
+        return new_samples
+
+    @staticmethod
+    def _filter_by_length(lengths: List[int], min_len: int, max_len: int):
+        """ filter out lengths out of the range of (min_len, max_len)
+        returns ignore_idx and keep_idxs
+        """
+        idxs = np.argsort(lengths)  # ascending order
+        ignore_idx = []
+        keep_idx = []
+        for idx in idxs:
+            length = lengths[idx]
+            if length < min_len or length > max_len:
+                ignore_idx.append(idx)
+            else:
+                keep_idx.append(idx)
+        return ignore_idx, keep_idx
+
+    @staticmethod
+    def _select_samples_by_idx(idxs, samples):
+        samples_new = []
+        for idx in idxs:
+            samples_new.append(samples[idx])
+        return samples_new
+
+    @staticmethod
+    def _sort_by_audio_length(samples: List[List]):
+        audio_lengths = [s["audio_length"] for s in samples]
+        idxs = np.argsort(audio_lengths)  # ascending order
+        return idxs
+
+    def preprocess_data(self, verbose=True):
+        """ 
+        filter the samples by min and max text & audio lens, 
+        and sort the samples by audio lens
+        """
+        samples = self._compute_lengths(self.samples)
+
+        text_lengths = [s["text_length"] for s in samples]
+        audio_lengths = [s["audio_length"] for s in samples]
+        text_ignore_idx, text_keep_idx = self._filter_by_length(text_lengths, self.min_text_len, self.max_text_len)
+        audio_ignore_idx, audio_keep_idx = self._filter_by_length(audio_lengths, self.min_audio_len, self.max_audio_len)
+
+        keep_idx = list(set(text_keep_idx) & set(audio_keep_idx))
+        ignore_idx = list(set(text_ignore_idx) & set(audio_ignore_idx))
+
+        # filter out samples out of the specified lens
+        samples = self._select_samples_by_idx(keep_idx, samples)
+
+        sorted_idxs = self._sort_by_audio_length(samples)
+
+        samples = self._select_samples_by_idx(sorted_idxs, samples)
+
+        text_lengths = [s["text_length"] for s in samples]
+        audio_lengths = [s["audio_length"] for s in samples]
+        self.samples = samples
+
+        if verbose:
+            print("Preprocessing data...")
+            print(f"Max text len: {np.max(text_lengths)}")
+            print(f"Min text len: {np.min(text_lengths)}")
+            print(f"Mean text len: {np.mean(text_lengths)}")
+            print(f"Max audio len: {np.max(audio_lengths)}")
+            print(f"Min audio len: {np.min(audio_lengths)}")
+            print(f"Mean audio len: {np.mean(audio_lengths)}")
+            print(f"Discarded number of samples: {len(ignore_idx)}")
+            print(f"Total number of samples: {len(audio_lengths)}")
+

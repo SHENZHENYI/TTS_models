@@ -13,6 +13,7 @@ gradual_learning_rates = (
     [6e4, 1e-1],
     [8e4, 5e-2],
 )
+
 def stepwise_lr_change(step):
     last_lr = gradual_learning_rates[0][-1]
     for step_lr_set in gradual_learning_rates[1:]:

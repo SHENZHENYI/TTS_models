@@ -19,6 +19,7 @@ class Tacotron2(BaseModel):
         hps
     ):
         super(Tacotron2, self).__init__()
+        self.cfg = hps
         self.embeddings = nn.Embedding(hps.text_vocab_size, hps.embed_size, padding_idx=0)
         self.encoder = Encoder(
             hps.cnn_channels,
@@ -152,10 +153,11 @@ class Tacotron2(BaseModel):
 
     def get_train_loader(self, samples: Dict, tokenizer=None):
         train_dataset = TTSDataset(samples)
+        train_dataset.preprocess_data()
         return DataLoader(
             train_dataset,
             batch_size=hps.batch_size,
-            shuffle=True,
+            shuffle=self.cfg.shuffle,
             collate_fn=train_dataset.collate_fn,
             drop_last=False, 
             num_workers=hps.num_loader_workers,
