@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 from typing import List
 
-from src.models.layers import ConvBlock, Linear, LocationAwareAttention
+from src.models.layers import ConvBlock, Linear, LocationAwareAttention_v2
 
 class Encoder(nn.Module):
     def __init__(
@@ -41,10 +41,12 @@ class PreNet(nn.Module):
         self.layers = nn.ModuleList([
             Linear(in_size, out_size, bias=False) for in_size, out_size in zip(in_sizes, sizes)
         ])
-    
+        #self.out_proj = Linear(sizes[-1], sizes[-1], bias=False) # added to check attention failure
+
     def forward(self, x):
-        for layer in self.layers:
+        for layer in self.layers[:-1]:
             x = F.dropout(layer(x).relu(), p=0.5, training=self.training or self.dropout_at_inference)
+        #x = self.out_proj(x)
         return x
 
 class PostNet(nn.Module):
@@ -93,7 +95,7 @@ class Decoder(nn.Module):
 
         self.prenet = PreNet(frame_dim*n_frames_per_step, [prenet_dim, prenet_dim])
         self.attention_rnn = nn.LSTMCell(prenet_dim+encoder_dim, attn_rnn_dim)
-        self.attention = LocationAwareAttention(        
+        self.attention = LocationAwareAttention_v2(        
                             attn_rnn_dim,
                             attn_dim,
                             encoder_dim)
@@ -127,8 +129,8 @@ class Decoder(nn.Module):
         self.encoder_outputs = encoder_outputs
         self.encoder_lengths = encoder_lengths
         self.processed_encoder_outputs = self.attention.preprocess_source_inputs(encoder_outputs)
-        self.attn_weights = torch.zeros(1, device=encoder_outputs.device).repeat(B, T)
-        self.attn_weights_cum = torch.zeros(1, device=encoder_outputs.device).repeat(B, T)
+        #self.attn_weights = torch.zeros(1, device=encoder_outputs.device).repeat(B, T)
+        #self.attn_weights_cum = torch.zeros(1, device=encoder_outputs.device).repeat(B, T)
 
     def _parse_decoder_outputs(self, mel_outputs, stop_tokens, alignments):
         """ stack outputs to be tensors
@@ -157,17 +159,17 @@ class Decoder(nn.Module):
         #self.attn_rnn_cell = F.dropout(
         #    self.attn_rnn_cell, self.p_attn_dropout, self.training
         #)
+        
         # run the attention block
-        attn_weights_cat = torch.cat(
-            (self.attn_weights.unsqueeze(1),
-            self.attn_weights_cum.unsqueeze(1)),
-            dim = 1
+        ##attn_weights_cat = torch.cat(
+        #    (self.attn_weights.unsqueeze(1),
+        #    self.attn_weights_cum.unsqueeze(1)),
+        #    dim = 1
+        #)
+
+        self.context = self.attention(
+            self.attn_rnn_hidden, self.encoder_outputs, self.processed_encoder_outputs, self.encoder_lengths
         )
-        self.context, self.attn_weights = self.attention(
-            self.attn_rnn_hidden, self.encoder_outputs, self.processed_encoder_outputs,
-            attn_weights_cat, self.encoder_lengths
-        )
-        self.attn_weights_cum += self.attn_weights
 
         #print(self.attn_weights.shape, self.attn_weights[0,])
 
@@ -184,7 +186,7 @@ class Decoder(nn.Module):
         )
         mel_output = self.linear_proj(decoder_hidden_context)
         stop_token = self.stop_proj(decoder_hidden_context)
-        return mel_output, self.attn_weights, stop_token
+        return mel_output, self.attention.attention_weights, stop_token
 
     def forward(
         self,
@@ -208,13 +210,12 @@ class Decoder(nn.Module):
         decoder_input = self.get_go_frame(encoder_outputs).unsqueeze(0)
         decoder_inputs = self._reshape_decoder_inputs(decoder_inputs)
         decoder_inputs = torch.cat((decoder_input, decoder_inputs), dim=0) # time first now
-        #print('decoder_inputs', decoder_inputs.shape)
         #raw_decoder_inputs = decoder_inputs
         decoder_inputs = self.prenet(decoder_inputs)
-        #print('decoder_inputs af', decoder_inputs.shape)
         #print('encoder_outputs', encoder_outputs.shape)
 
         self._init_states(encoder_outputs, encoder_lengths)
+        self.attention.init_states(encoder_outputs)
 
         mel_outputs, alignments, stop_tokens = [], [], []
         while len(mel_outputs) < decoder_inputs.size(0)-1:

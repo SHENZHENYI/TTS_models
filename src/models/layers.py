@@ -53,6 +53,41 @@ class Linear(nn.Module):
     def forward(self, x):
         return self.linear_layer(x)
 
+
+class LinearBN(nn.Module):
+    """Linear layer with Batch Normalization.
+
+    x -> linear -> BN -> o
+
+    Args:
+        in_features (int): number of channels in the input tensor.
+        out_features (int ): number of channels in the output tensor.
+        bias (bool, optional): enable/disable bias in the linear layer. Defaults to True.
+        init_gain (str, optional): method to set the gain for weight initialization. Defaults to 'linear'.
+    """
+
+    def __init__(self, in_features, out_features, bias=True, w_init_gain="linear"):
+        super().__init__()
+        self.linear_layer = torch.nn.Linear(in_features, out_features, bias=bias)
+        self.batch_normalization = nn.BatchNorm1d(out_features, momentum=0.1, eps=1e-5)
+
+        nn.init.xavier_uniform_(
+            self.linear_layer.weight,
+            gain=nn.init.calculate_gain(w_init_gain))
+
+    def forward(self, x):
+        """
+        Shapes:
+            x: [T, B, C] or [B, C]
+        """
+        out = self.linear_layer(x)
+        if len(out.shape) == 3:
+            out = out.permute(1, 2, 0)
+        out = self.batch_normalization(out)
+        if len(out.shape) == 3:
+            out = out.permute(2, 0, 1)
+        return out
+
 class LocationLayer(nn.Module):
     """Layers for Location Sensitive Attention
     Args:
@@ -139,6 +174,87 @@ class LocationAwareAttention(nn.Module):
         attention_context = attention_context.squeeze(1)
 
         return attention_context, attention_weights
+
+
+class LocationAwareAttention_v2(nn.Module):
+    def __init__(
+        self,
+        attn_rnn_dim,
+        attn_dim,
+        encoder_dim,
+        use_location_attention=True,
+    ):
+        super(LocationAwareAttention_v2, self).__init__()
+        self.query_layer = Linear(attn_rnn_dim, attn_dim, bias=False, w_init_gain='tanh')
+        self.source_layer = Linear(encoder_dim, attn_dim, bias=False, w_init_gain='tanh')
+        self.v = Linear(attn_dim, 1, bias=True)
+        if use_location_attention:
+            self.location_layer = LocationLayer(attn_dim)
+        self.mask_value = -float('inf')
+        self.use_location_attention = use_location_attention
+    
+    def init_location_attention(self, inputs):
+        B = inputs.size(0)
+        T = inputs.size(1)
+        self.attention_weights_cum = torch.zeros([B, T], device=inputs.device)
+
+    def init_states(self, inputs):
+        B = inputs.size(0)
+        T = inputs.size(1)
+        self.attention_weights = torch.zeros([B, T], device=inputs.device)
+        if self.use_location_attention:
+            self.init_location_attention(inputs)
+
+    def preprocess_source_inputs(self, x):
+        return self.source_layer(x)
+
+    def update_location_attention(self, alignments):
+        self.attention_weights_cum += alignments
+
+    def get_alignment_energies(self, query, processed_source,):
+        """
+        ei,j = wT tanh(W si−1 + V hj + Ufi,j)
+        Shapes:
+            - query: (B, attn_rnn_dim)
+            - processed_source: (B, encoder_len, attn_dim)
+            - attn_weights_cat: (B, 2, encoder_len)
+            - energies: (B, encoder_len)
+        """
+        attention_cat = torch.cat((self.attention_weights.unsqueeze(1), self.attention_weights_cum.unsqueeze(1)), dim=1)
+        processed_query = self.query_layer(query.unsqueeze(1))
+        if self.use_location_attention:
+            processed_attention_cat= self.location_layer(attention_cat)
+            energies = self.v(torch.tanh(processed_query + processed_source + processed_attention_cat))
+        else:
+            energies = self.v(torch.tanh(processed_query + processed_source))
+        return energies.squeeze(2)
+
+
+    def forward(self, query, source, processed_source, source_mask):
+        """
+        query: attention_rnn_hidden
+        source: encoder_outputs
+
+        Shapes:
+            - attention_context: (B, encoder_dim)
+            - attention_weights: (B, encoder_len)
+        """
+        energies = self.get_alignment_energies(
+            query, processed_source,
+        )
+
+        energies = energies.data.masked_fill(~source_mask, self.mask_value) # added .data dont konw if will make a difference
+        alignment = F.softmax(energies, dim=-1)
+
+        if self.use_location_attention:
+            self.update_location_attention(alignment)
+
+        attention_context = torch.bmm(alignment.unsqueeze(1), source)
+        attention_context = attention_context.squeeze(1)
+        self.attention_weights = alignment
+
+        return attention_context
+
 
 class TacotronSTFT(torch.nn.Module):
     def __init__(self, filter_length=1024, hop_length=256, win_length=1024,

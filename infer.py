@@ -5,7 +5,7 @@ from src.utils.plot import plot_alignment, plot_spectrogram, plot_stop_tokens
 
 # get the data
 data_dir = "data"
-checkpoint_path = "save_dir/tacotron_fold0_last_0106_e100.pth"
+checkpoint_path = "save_dir/tacotron_fold0_e358.pth"
 #!wget -O $output_path/LJSpeech-1.1.tar.bz2 https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2 
 #!tar -xf $output_path/LJSpeech-1.1.tar.bz2 -C $output_path
 
@@ -25,7 +25,7 @@ plt.savefig('./tmp.png')
 """
 
 metadata_train, metadata_val = load_samples(
-    data_dir, 'metadata.csv', True, 51
+    data_dir, 'metadata.csv', True, 50
 )
 
 model = Tacotron2(hps)
@@ -47,7 +47,7 @@ print(preds['model_outputs'].all[0].shape)
 
 plot_spectrogram(preds['model_outputs'].all[0], 'infer_pred_postnet.png')
 plot_spectrogram(preds['decoder_outputs'].all[0], 'infer_pred_decoder.png')
-plot_alignment(preds['alignments'].all[0], 'infer_pred_align.png')
+plot_alignment(preds['alignments'].all[0].T, 'infer_pred_align.png')
 plot_stop_tokens(preds['stop_tokens'].all[0], 'infer_pred_stops.png')
 
 
