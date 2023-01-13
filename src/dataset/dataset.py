@@ -22,7 +22,7 @@ class TTSDataset(Dataset):
         self.samples = samples
         self.sample_rate = 22050
         self.n_frames_per_step = 1
-        self.max_audio_len = 8 * 22050
+        self.max_audio_len = 10 * 22050
         self.min_audio_len = 1 * 22050
         self.max_text_len = float('inf')
         self.min_text_len = 1
@@ -79,6 +79,7 @@ class TTSDataset(Dataset):
         stop_targets = [np.array([0.0] * (mel_len - 1) + [1.0]) for mel_len in mel_lengths]
         stop_targets = prepare_stop_target(stop_targets, out_steps=self.n_frames_per_step)
         mel = prepare_tensor(batch['mel'], 1)
+
         mel = mel.transpose(0, 2, 1)
 
         wav = None #prepare_data(batch['wav'])

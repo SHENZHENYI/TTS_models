@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 from typing import List
 
-from src.models.layers import ConvBlock, Linear, LocationAwareAttention_v2
+from src.models.layers import ConvBlock, Linear, LinearBN, LocationAwareAttention_v2
 
 class Encoder(nn.Module):
     def __init__(
@@ -34,18 +34,24 @@ class PreNet(nn.Module):
         in_size: int,
         sizes: List[int],
         dropout_at_inference=False,
+        use_bn = False,
     ):
         super(PreNet, self).__init__()
         self.dropout_at_inference = dropout_at_inference
         in_sizes = [in_size] + sizes[:-1]
-        self.layers = nn.ModuleList([
-            Linear(in_size, out_size, bias=False) for in_size, out_size in zip(in_sizes, sizes)
-        ])
+        if not use_bn:
+            self.layers = nn.ModuleList([
+                Linear(in_size, out_size, bias=False) for in_size, out_size in zip(in_sizes, sizes)
+            ])
+        else:
+            self.layers = nn.ModuleList([
+                LinearBN(in_size, out_size, bias=False) for in_size, out_size in zip(in_sizes, sizes)
+            ])       
         #self.out_proj = Linear(sizes[-1], sizes[-1], bias=False) # added to check attention failure
 
     def forward(self, x):
-        for layer in self.layers[:-1]:
-            x = F.dropout(layer(x).relu(), p=0.5, training=self.training or self.dropout_at_inference)
+        for layer in self.layers:
+            x = F.dropout(F.relu(layer(x)), p=0.5, training=self.training or self.dropout_at_inference)
         #x = self.out_proj(x)
         return x
 
@@ -94,12 +100,12 @@ class Decoder(nn.Module):
         self.p_decoder_dropout = p_decoder_dropout
 
         self.prenet = PreNet(frame_dim*n_frames_per_step, [prenet_dim, prenet_dim])
-        self.attention_rnn = nn.LSTMCell(prenet_dim+encoder_dim, attn_rnn_dim)
+        self.attention_rnn = nn.LSTMCell(prenet_dim+encoder_dim, attn_rnn_dim, bias=True)
         self.attention = LocationAwareAttention_v2(        
                             attn_rnn_dim,
                             attn_dim,
                             encoder_dim)
-        self.decoder_rnn = nn.LSTMCell(attn_rnn_dim+encoder_dim, decoder_rnn_dim)
+        self.decoder_rnn = nn.LSTMCell(attn_rnn_dim+encoder_dim, decoder_rnn_dim, bias=True)
         self.linear_proj = Linear(decoder_rnn_dim+encoder_dim, frame_dim*n_frames_per_step)
         self.stop_proj = Linear(decoder_rnn_dim+encoder_dim, 1, bias=True, w_init_gain='sigmoid')
 
@@ -118,16 +124,15 @@ class Decoder(nn.Module):
         decoder_inputs = decoder_inputs.transpose(0, 1) # (B, len, n_mel) -> (len, B, n_mel)
         return decoder_inputs
 
-    def _init_states(self, encoder_outputs, encoder_lengths):
+    def _init_states(self, encoder_outputs, encoder_masks):
         B = encoder_outputs.size(0)
-        T = encoder_outputs.size(1)
         self.attn_rnn_hidden = torch.zeros(1, device=encoder_outputs.device).repeat(B, self.attn_rnn_dim)
         self.attn_rnn_cell = torch.zeros(1, device=encoder_outputs.device).repeat(B, self.attn_rnn_dim)
         self.decoder_rnn_hidden = torch.zeros(1, device=encoder_outputs.device).repeat(B, self.decoder_rnn_dim)
         self.decoder_rnn_cell = torch.zeros(1, device=encoder_outputs.device).repeat(B, self.decoder_rnn_dim)
         self.context = torch.zeros(1, device=encoder_outputs.device).repeat(B, self.encoder_dim)
         self.encoder_outputs = encoder_outputs
-        self.encoder_lengths = encoder_lengths
+        self.encoder_masks = encoder_masks
         self.processed_encoder_outputs = self.attention.preprocess_source_inputs(encoder_outputs)
         #self.attn_weights = torch.zeros(1, device=encoder_outputs.device).repeat(B, T)
         #self.attn_weights_cum = torch.zeros(1, device=encoder_outputs.device).repeat(B, T)
@@ -168,7 +173,7 @@ class Decoder(nn.Module):
         #)
 
         self.context = self.attention(
-            self.attn_rnn_hidden, self.encoder_outputs, self.processed_encoder_outputs, self.encoder_lengths
+            self.attn_rnn_hidden, self.encoder_outputs, self.processed_encoder_outputs, self.encoder_masks
         )
 
         #print(self.attn_weights.shape, self.attn_weights[0,])
@@ -192,7 +197,7 @@ class Decoder(nn.Module):
         self,
         encoder_outputs,
         decoder_inputs,
-        encoder_lengths
+        encoder_masks
     ):
         """Decoder forward for training
         Use teacher forcing
@@ -205,21 +210,22 @@ class Decoder(nn.Module):
         Shapes:
             - encoder_outputs: (B, len, enc_out_dim)
             - decoder_inputs: (B, len_mel, mel_dim)
-            - encoder_lengths: (B, len)
+            - encoder_masks: (B, len)
         """
         decoder_input = self.get_go_frame(encoder_outputs).unsqueeze(0)
         decoder_inputs = self._reshape_decoder_inputs(decoder_inputs)
         decoder_inputs = torch.cat((decoder_input, decoder_inputs), dim=0) # time first now
         #raw_decoder_inputs = decoder_inputs
         decoder_inputs = self.prenet(decoder_inputs)
+        
         #print('encoder_outputs', encoder_outputs.shape)
-
-        self._init_states(encoder_outputs, encoder_lengths)
+        self._init_states(encoder_outputs, encoder_masks)
         self.attention.init_states(encoder_outputs)
 
         mel_outputs, alignments, stop_tokens = [], [], []
+        i = 0
         while len(mel_outputs) < decoder_inputs.size(0)-1:
-            #print(len(mel_outputs))
+            i+=1
             decoder_input = decoder_inputs[len(mel_outputs)]
             #print('raw_decoder_inputs', raw_decoder_inputs[len(mel_outputs)][-1,])
             mel_output, attention_weights, stop_token = self.decode(decoder_input)
@@ -243,6 +249,7 @@ class Decoder(nn.Module):
         decoder_input = self.get_go_frame(encoder_outputs)
 
         self._init_states(encoder_outputs, encoder_lengths)
+        self.attention.init_states(encoder_outputs)
 
         mel_outputs, alignments, stop_tokens = [], [], []
         i = 0

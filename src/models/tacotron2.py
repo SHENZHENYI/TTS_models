@@ -75,8 +75,7 @@ class Tacotron2(BaseModel):
             mel,
             text_masks,
         )
-
-        if mel_lengths is not None:
+        if mel_masks is not None:
             decoder_outputs = decoder_outputs * mel_masks.unsqueeze(1).expand_as(decoder_outputs)
 
         # postnet learns the residual
@@ -104,7 +103,6 @@ class Tacotron2(BaseModel):
         mel_lengths = batch['mel_lengths']
         mel_masks = self.compute_masks(mel_lengths)
         stop_targets = batch['stop_targets']
-
         outputs = self.forward(text_input, text_lengths, mel_inputs, mel_lengths)
 
         loss_dict = criterion(

@@ -222,6 +222,7 @@ class LocationAwareAttention_v2(nn.Module):
         """
         attention_cat = torch.cat((self.attention_weights.unsqueeze(1), self.attention_weights_cum.unsqueeze(1)), dim=1)
         processed_query = self.query_layer(query.unsqueeze(1))
+
         if self.use_location_attention:
             processed_attention_cat= self.location_layer(attention_cat)
             energies = self.v(torch.tanh(processed_query + processed_source + processed_attention_cat))
