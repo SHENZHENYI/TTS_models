@@ -10,7 +10,6 @@ from src.models.basemodel import BaseModel
 from src.models.tacotron2_modules import *
 from src.models.losses import TacotronLoss
 from src.dataset.dataset import TTSDataset
-from src.utils.utils import sequence_mask
 from src.trainer_utils import get_scheduler
 
 class Tacotron2(BaseModel):
@@ -39,12 +38,6 @@ class Tacotron2(BaseModel):
             hps.p_decoder_dropout,
         )
         self.postnet = PostNet(hps.num_mels*hps.n_frames_per_step, hps.postnet_n_convs)
-    
-    def compute_masks(self, lengths):
-        """Compute masks against sequence paddings."""
-        # B x T_in_max (boolean)
-        masks = sequence_mask(lengths)
-        return masks
 
     @staticmethod
     def _reshape_outputs(decoder_outputs, postnet_outputs):
