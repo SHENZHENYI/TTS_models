@@ -5,7 +5,7 @@ from src.utils.plot import plot_alignment, plot_spectrogram, plot_stop_tokens
 
 # get the data
 data_dir = "data"
-checkpoint_path = "save_dir/tacotron_fold0_last_0113.pth"
+checkpoint_path = "save_dir/tacotron_fold0_e358.pth"
 #!wget -O $output_path/LJSpeech-1.1.tar.bz2 https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2 
 #!tar -xf $output_path/LJSpeech-1.1.tar.bz2 -C $output_path
 

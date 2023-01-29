@@ -3,8 +3,6 @@ from typing import Dict, List, Tuple
 import torch
 from torch import nn
 
-from src.utils.utils import sequence_mask
-
 class BaseModel(nn.Module):
     """abstract base model"""
     @abstractmethod
@@ -34,10 +32,3 @@ class BaseModel(nn.Module):
     def load_checkpoint(self, checkpoint_path: str) -> None:
         """load checkpoint for evaluation
         """
-
-    @staticmethod
-    def compute_masks(lengths):
-        """Compute masks against sequence paddings."""
-        # B x T_in_max (boolean)
-        masks = sequence_mask(lengths)
-        return masks
