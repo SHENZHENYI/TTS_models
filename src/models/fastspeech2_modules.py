@@ -1,6 +1,8 @@
 import torch
 from torch import nn
+import numpy as np
 from typing import List
+from collections import OrderedDict
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
     """ Sinusoid position encoding table """
@@ -26,7 +28,6 @@ def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
 
 class LayerNorm(nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
-
     def forward(self, x: torch.Tensor):
         orig_type = x.dtype
         ret = super().forward(x.type(torch.float32))
@@ -42,9 +43,9 @@ class FFTBlock(nn.Module):
         dropout: int = 0.1,
     ):
         super(FFTBlock, self).__init__()
-        self.slf_attn = nn.MultiheadAttention(input_dim, n_heads, dropout=dropout)
+        self.slf_attn = nn.MultiheadAttention(input_dim, n_heads, dropout=dropout, batch_first=True)
         self.ln_1 = LayerNorm(input_dim)
-        self.conv1ds = nn.Sequential(nn.OrderedDict([
+        self.conv1ds = nn.Sequential(OrderedDict([
             ('conv1d1', nn.Conv1d(input_dim, conv_hidden_size, kernel_size=kernel_size[0], padding=(kernel_size[0] - 1)//2)),
             ('relu', nn.ReLU()),
             ('conv1d2', nn.Conv1d(conv_hidden_size, input_dim, kernel_size=kernel_size[1], padding=(kernel_size[1] - 1)//2)),
@@ -54,8 +55,8 @@ class FFTBlock(nn.Module):
     def forward(self, x, encoder_mask):
         # x is the encoder inputs
         x_norm = self.ln_1(x)
-        x = x + self.slf_attn(x_norm, x_norm, x_norm, attn_mask=encoder_mask)
-        x = x + self.conv1ds(self.ln_2(x))
+        x = x + self.slf_attn(x_norm, x_norm, x_norm, key_padding_mask=encoder_mask)[0]
+        x = x + self.conv1ds(self.ln_2(x).transpose(1,2)).transpose(1,2)
         return x
 
 
@@ -65,32 +66,39 @@ class Encoder(nn.Module):
     """
     def __init__(
         self,
+        n_src_vocab,
+        max_seq_len,
         n_layers,
-        d_model,
+        encoder_hidden_dim,
         n_head,
-        conv_hidden_size,
-        kernel_size,
+        conv_filter_size,
+        conv_kernel_size,
     ):
         super(Encoder, self).__init__()
         self.n_layers = n_layers
+        self.max_seq_len = max_seq_len
 
         self.src_word_emb = nn.Embedding(
-            n_src_vocab, d_word_vec, padding_idx=Constants.PAD
+            n_src_vocab, encoder_hidden_dim, padding_idx=0
         )
         self.position_enc = nn.Parameter(
-            get_sinusoid_encoding_table(n_position, d_word_vec).unsqueeze(0),
+            get_sinusoid_encoding_table(max_seq_len+1, encoder_hidden_dim).unsqueeze(0),
             requires_grad=False,
         )
 
         self.ffts = nn.ModuleList([
-            FFTBlock(d_model, n_head, conv_hidden_size, kernel_size) for _ in range(n_layers)
+            FFTBlock(encoder_hidden_dim, n_head, conv_filter_size, conv_kernel_size) for _ in range(n_layers)
         ])
 
     def forward(
         self, x, src_mask
     ):
+        B, T = x.shape
+        assert T < self.max_seq_len
+
+        x = self.src_word_emb(x) + self.position_enc[:, :T, :]
         for fft in self.ffts:
-            x = fft(x, src_mask)
+            x = fft(x, ~src_mask)
         return x
     
 

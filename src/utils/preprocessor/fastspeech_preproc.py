@@ -15,7 +15,7 @@ from scipy.interpolate import interp1d
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
-import utils.audio as Audio
+import src.utils.audio as Audio
 
 class Preprocessor:
     def __init__(self, config):
@@ -68,9 +68,12 @@ class Preprocessor:
 
         # Compute pitch, energy, duration, and mel-spectrogram
         speakers = {}
-        for i, speaker in enumerate(tqdm(os.listdir(self.in_dir))):
+        if os.path.exists(os.path.join(self.in_dir, ".DS_Store")):
+            os.system(f'rm {os.path.join(self.in_dir, ".DS_Store")}')
+        for i, speaker in enumerate((os.listdir(self.in_dir))):
+            print(f'{speaker}...')
             speakers[speaker] = i
-            for wav_name in os.listdir(os.path.join(self.in_dir, speaker)):
+            for wav_name in tqdm(os.listdir(os.path.join(self.in_dir, speaker))):
                 if ".wav" not in wav_name:
                     continue
 
@@ -79,10 +82,12 @@ class Preprocessor:
                     self.out_dir, "TextGrid", speaker, "{}.TextGrid".format(basename)
                 )
                 if os.path.exists(tg_path):
+                    # save duartion, pitch, energy and mel
                     ret = self.process_utterance(speaker, basename)
                     if ret is None:
                         continue
                     else:
+                        # info = "|".join([basename, speaker, text, raw_text])
                         info, pitch, energy, n = ret
                     out.append(info)
 
@@ -109,6 +114,7 @@ class Preprocessor:
             energy_mean = 0
             energy_std = 1
 
+        # rewrite the pitch and energy files to do norm
         pitch_min, pitch_max = self.normalize(
             os.path.join(self.out_dir, "pitch"), pitch_mean, pitch_std
         )
@@ -189,8 +195,7 @@ class Preprocessor:
             frame_period=self.hop_length / self.sampling_rate * 1000,
         )
         pitch = pw.stonemask(wav.astype(np.float64), pitch, t, self.sampling_rate)
-
-        pitch = pitch[: sum(duration)]
+        pitch = pitch[: sum(duration)] # what if the start time is not 0.0??
         if np.sum(pitch != 0) <= 1:
             return None
 

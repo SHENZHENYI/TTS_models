@@ -11,7 +11,6 @@ import torch
 import librosa
 from torch.utils.data import Dataset
 from src.utils.text import text_to_sequence
-from src.utils.audio import melspectrogram
 from src.utils.utils import prepare_data, prepare_tensor, prepare_stop_target
 
 class TTSDataset(Dataset):

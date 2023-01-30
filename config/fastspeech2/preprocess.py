@@ -2,7 +2,11 @@ from dataclasses import asdict, dataclass, field
 
 @dataclass
 class PreprocessConfig:
+    # validation size
+    val_size: int = 50
+
     # text
+    phoneme_vocab_size = 172
     corpus_path: str = './data'
     lexicon_path: str = './mfa_data/librispeech-lexicon.txt'
     raw_path: str = "./data/raw_data/LJSpeech"
@@ -19,7 +23,7 @@ class PreprocessConfig:
     win_length: int = 1024
 
     # mel
-    n_mel_channel: int = 80
+    n_mel_channels: int = 80
     mel_fmin: int = 0
     mel_fmax: int = 8000
 
