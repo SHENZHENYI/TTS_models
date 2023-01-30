@@ -2,9 +2,9 @@ import os
 import numpy as np
 from typing import Union, Tuple, List, Dict
 
-from src.utils.audio import melspectrogram, load_wav
-from src.dataset.dataset import *
-from src.models.layers import TacotronSTFT
+#from src.utils.audio import melspectrogram, load_wav
+from src.dataset.dataset_v2 import *
+from src.utils.audio.stft import TacotronSTFT
 from src.dataset.utils import load_mel_from_wav
 
 def prepare_meldata(root_path, hps):
@@ -31,6 +31,16 @@ def prepare_meldata_nvidia(root_path, hps):
         np.save(mel_path, mel)
         print(f'Saved {f}')
 
+def prepare_duration_pitch_energy_mel_metadata_fastspeech2():
+    from src.utils.preprocessor.fastspeech_preproc import Preprocessor
+    from config.fastspeech2.preprocess import PreprocessConfig
+
+    cfg = PreprocessConfig()
+    preproc = Preprocessor(cfg)
+
+    preproc.build_from_path()
+
+
 def parse_metadata(root_path, metadata_path: str):
     items = []
     with open(os.path.join(root_path, metadata_path), 'r', encoding='utf8') as f:
@@ -41,6 +51,28 @@ def parse_metadata(root_path, metadata_path: str):
             text = cols[2].replace('\n', '')
             items.append({"text": text, "audio_file": wav_file, "root_path": root_path, 'mel_file': mel_file})
     return items
+
+def parse_metadata_fs(root_path, data_split: str = 'train'):
+    items = []
+    with open(os.path.join(root_path, f'{data_split}.txt'), 'r', encoding='utf8') as f:
+        for line in f:
+            filename, speaker, phoneme, text = line.strip("\n").split("|")
+            wav_path = os.path.join(os.path.dirname(os.path.dirname(root_path)), "wavs", filename + ".wav")
+            mel_path = os.path.join(root_path, "mel", f"{speaker}-mel-{filename}.npy")
+            duration_path = os.path.join(root_path, "duration", f"{speaker}-duration-{filename}.npy")
+            pitch_path = os.path.join(root_path, "pitch", f"{speaker}-pitch-{filename}.npy")
+            energy_path = os.path.join(root_path, "energy", f"{speaker}-energy-{filename}.npy")
+            items.append({
+                "text": text,
+                "phoneme": phoneme,
+                "wav_path": wav_path,
+                "mel_path": mel_path,
+                "duration_path": duration_path,
+                "pitch_path": pitch_path,
+                "energy_path": energy_path
+            })
+    return items
+
 
 def split_data(all_data, eval_split_size):
     np.random.seed(0)
@@ -59,3 +91,8 @@ def load_samples(
         metadata_eval, metadata_train = split_data(metadata_train, eval_split_size)
     return metadata_train, metadata_eval
 
+def load_samples_fs(
+    root_dir: str,
+    data_split: str = 'train'
+) -> List[Dict]:
+    return parse_metadata_fs(root_dir, data_split)
