@@ -29,8 +29,8 @@ class PreprocessConfig:
 
     # pitch
     pitch_feature: str = 'frame_level'
-    pitch_norm: bool = True 
+    pitch_norm: bool = False 
 
     # energy
     energy_feature: str = 'frame_level'
-    energy_norm: bool = True
+    energy_norm: bool = False
