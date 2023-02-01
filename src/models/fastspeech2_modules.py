@@ -2,9 +2,12 @@ import os
 import json
 import torch
 from torch import nn
+from torch.nn import functional as F
 import numpy as np
 from typing import List
 from collections import OrderedDict
+
+from src.utils.utils import sequence_mask
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
     """ Sinusoid position encoding table """
@@ -64,6 +67,26 @@ class FFTBlock(nn.Module):
         x = x + self.conv1ds(self.ln_2(x).transpose(1,2)).transpose(1,2) # transpose for conv
         return x
 
+def pad(input_ele, mel_max_length=None):
+    if mel_max_length:
+        max_len = mel_max_length
+    else:
+        max_len = max([input_ele[i].size(0) for i in range(len(input_ele))])
+
+    out_list = list()
+    for i, batch in enumerate(input_ele):
+        if len(batch.shape) == 1:
+            one_batch_padded = F.pad(
+                batch, (0, max_len - batch.size(0)), "constant", 0.0
+            )
+        elif len(batch.shape) == 2:
+            one_batch_padded = F.pad(
+                batch, (0, 0, 0, max_len - batch.size(0)), "constant", 0.0
+            )
+        out_list.append(one_batch_padded)
+    out_padded = torch.stack(out_list)
+    return out_padded
+
 class LengthRegulator(nn.Module):
     def __init__(
         self
@@ -71,9 +94,22 @@ class LengthRegulator(nn.Module):
         super(LengthRegulator, self).__init__()
 
     def forward(
-        self, x
+        self, x, duration, max_mel_len
     ):
-        pass
+        """expand x_i dur_i times, where i the the index of the two tensors"""
+        B, T, C = x.shape
+        outputs = []
+        expaned_mel_len = []
+        for b in range(B):
+            expand_matrix = torch.zeros(max_mel_len, T, device=x.device)
+            accum = 0
+            for t in range(T):
+                expand_matrix[accum:accum+duration[b, t], t] = 1.
+                accum += duration[b, t]
+            expaned_mel_len.append(accum)
+            outputs.append(expand_matrix @ x[b])
+        return pad(outputs), torch.tensor(expaned_mel_len, device=x.device)
+
 
 class VariancePredictor(nn.Module):
     """Variance Predictor
@@ -94,10 +130,15 @@ class VariancePredictor(nn.Module):
         self.dropout2 = nn.Dropout(p=dropout)
         self.linear = nn.Linear(conv_filter_size, 1)
     
-    def forward(self, x):
+    def forward(self, x, src_mask=None):
         x = self.dropout1(self.ln1(self.conv1(x.contiguous().transpose(1, 2)).contiguous().transpose(1, 2).relu()))
         x = self.dropout2(self.ln2(self.conv2(x.contiguous().transpose(1, 2)).contiguous().transpose(1, 2).relu()))
-        return self.linear(x)
+        x = self.linear(x)
+        x = x.squeeze(-1)
+
+        if src_mask is not None:
+            x = x.masked_fill(src_mask==0, 0.)
+        return x
 
 
 class Encoder(nn.Module):
@@ -142,7 +183,7 @@ class Encoder(nn.Module):
         return x
     
 
-class VarianceAdaptor():
+class VarianceAdaptor(nn.Module):
     """Variance Adaptor
     A stack of variance predictors, and a duration regulator"""
     def __init__(
@@ -194,16 +235,52 @@ class VarianceAdaptor():
                 torch.linspace(min_val+1e-10, max_val, n_bins-1)
             )
     
-    def get_variance_embeddings(self, x, target, mask, control):
-        pass
+    def get_variance_embeddings_train(self, predictor, embedding_layer, x, src_mask, target, bins):
+        prediction = predictor(x, src_mask)
+        embedding = embedding_layer(torch.bucketize(target, bins))
+        return prediction, embedding
+
+    def get_variance_embeddings_inference(self, predictor, embedding_layer, x, src_mask, target, bins, control):
+        prediction = predictor(x, src_mask)
+        prediction = prediction * control
+        embedding = embedding_layer(torch.bucketize(prediction, bins))
+        return prediction, embedding
 
     def forward(
         self,
         x,
+        src_mask,
+        max_mel_len,
         pitch_target=None,
         energy_target=None,
         duration_target=None
     ):
+        """for train"""
+        # duration
+        log_duration_prediction = self.duration_predictor(x, src_mask)
+        x, mel_len = self.length_regulator(x, duration_target, max_mel_len)
+        mel_mask = sequence_mask(mel_len) # also expand the src_mask
+
+        # pitch
+        pitch_prediction, pitch_embedding = self.get_variance_embeddings_train(
+                self.pitch_predictor, self.pitch_embeddings, x, mel_mask, pitch_target, self.pitch_bins
+            )
+        x = x + pitch_embedding
+
+        # energy
+        energy_prediction, energy_embedding = self.get_variance_embeddings_train(
+                self.energy_predictor, self.energy_embeddings, x, mel_mask, energy_target, self.energy_bins
+            )
+        x = x + energy_embedding
+
+        return x, log_duration_prediction, pitch_prediction, energy_prediction, mel_len, mel_mask
+    
+    def inference(
+        self,
+        x,
+        src_mask,
+    ):
+        """inference forward"""
         pass
 
 class Decoder():

@@ -59,9 +59,6 @@ class TTSDataset(Dataset):
         else:
             token_ids = np.array(self.get_token_ids(raw_text))
 
-        print(len(phoneme), len(token_ids), len(phoneme.split(' ')))
-        print(phoneme)
-        print(token_ids)
         return {
             "raw_text": raw_text,
             "token_ids": token_ids,
@@ -87,7 +84,7 @@ class TTSDataset(Dataset):
         pitch = prepare_data(batch['pitch'])
         duration = prepare_data(batch['duration'])
 
-        mel_lengths = [m.shape[1] for m in batch['mel']]
+        mel_lengths = [m.shape[0] for m in batch['mel']] # may raise err for tacotron
         stop_targets = [np.array([0.0] * (mel_len - 1) + [1.0]) for mel_len in mel_lengths]
         stop_targets = prepare_stop_target(stop_targets, out_steps=self.n_frames_per_step)
         mel = prepare_tensor(batch['mel'], 1)

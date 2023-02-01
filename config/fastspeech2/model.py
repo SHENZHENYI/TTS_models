@@ -17,3 +17,4 @@ class ModelConfig:
     variance_predictor_n_bins = 256
 
     max_seq_len = 1000
+    n_bins = 256
