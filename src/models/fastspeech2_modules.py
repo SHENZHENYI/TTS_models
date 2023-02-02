@@ -59,12 +59,12 @@ class FFTBlock(nn.Module):
             ('conv1d2', nn.Conv1d(conv_hidden_size, input_dim, kernel_size=kernel_size[1], padding=(kernel_size[1] - 1)//2)),
         ]))
         self.ln_2 = LayerNorm(input_dim)
+        self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, encoder_mask):
         # x is the encoder inputs
-        x_norm = self.ln_1(x)
-        x = x + self.slf_attn(x_norm, x_norm, x_norm, key_padding_mask=encoder_mask)[0]
-        x = x + self.conv1ds(self.ln_2(x).transpose(1,2)).transpose(1,2) # transpose for conv
+        x = self.ln_1(x + self.slf_attn(x, x, x, key_padding_mask=encoder_mask)[0]) # postnorm
+        x = self.ln_2(x + self.dropout(self.conv1ds(x.transpose(1,2)).transpose(1,2))) # transpose for conv
         return x
 
 def pad(input_ele, mel_max_length=None):
@@ -138,46 +138,45 @@ class VariancePredictor(nn.Module):
 
         if src_mask is not None:
             x = x.masked_fill(src_mask==0, 0.)
+
         return x
 
 
-class Encoder(nn.Module):
+class FeedForwardTransformer(nn.Module):
     """ encoder of FastSpeech2
     consists of a phoneme embedding, a positional embedding, a fft block
     """
     def __init__(
         self,
-        n_src_vocab,
         max_seq_len,
         n_layers,
         encoder_hidden_dim,
         n_head,
         conv_filter_size,
         conv_kernel_size,
+        dropout,
     ):
-        super(Encoder, self).__init__()
+        super(FeedForwardTransformer, self).__init__()
         self.n_layers = n_layers
         self.max_seq_len = max_seq_len
 
-        self.src_word_emb = nn.Embedding(
-            n_src_vocab, encoder_hidden_dim, padding_idx=0
-        )
         self.position_enc = nn.Parameter(
             get_sinusoid_encoding_table(max_seq_len+1, encoder_hidden_dim).unsqueeze(0),
             requires_grad=False,
         )
 
         self.ffts = nn.ModuleList([
-            FFTBlock(encoder_hidden_dim, n_head, conv_filter_size, conv_kernel_size) for _ in range(n_layers)
+            FFTBlock(encoder_hidden_dim, n_head, conv_filter_size, conv_kernel_size, dropout) for _ in range(n_layers)
         ])
 
     def forward(
         self, x, src_mask
     ):
-        B, T = x.shape
-        assert T < self.max_seq_len
+        B, T, C = x.shape
+        max_len = min(T, self.max_seq_len)
+        src_mask = src_mask[:, :max_len]
 
-        x = self.src_word_emb(x) + self.position_enc[:, :T, :]
+        x = x[:, :max_len, :] + self.position_enc[:, :max_len, :]
         for fft in self.ffts:
             x = fft(x, ~src_mask)
         return x
@@ -251,15 +250,17 @@ class VarianceAdaptor(nn.Module):
         x,
         src_mask,
         max_mel_len,
+        mel_mask=None,
         pitch_target=None,
         energy_target=None,
         duration_target=None
     ):
         """for train"""
+        max_mel_len = min(max_mel_len, mel_mask.size(1))
+
         # duration
         log_duration_prediction = self.duration_predictor(x, src_mask)
         x, mel_len = self.length_regulator(x, duration_target, max_mel_len)
-        mel_mask = sequence_mask(mel_len) # also expand the src_mask
 
         # pitch
         pitch_prediction, pitch_embedding = self.get_variance_embeddings_train(
@@ -281,9 +282,4 @@ class VarianceAdaptor(nn.Module):
         src_mask,
     ):
         """inference forward"""
-        pass
-
-class Decoder():
-    """Mel-spectrogram Decoder"""
-    def __init__(self):
         pass

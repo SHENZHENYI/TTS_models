@@ -10,7 +10,8 @@ from config.fastspeech2.model import ModelConfig
 
 from src.dataset import load_samples_fs, TTSDataset
 from src.utils.text import text_to_sequence
-from src.models.fastspeech2_modules import Encoder, VariancePredictor, LengthRegulator, VarianceAdaptor
+from src.models.fastspeech2 import FastSpeech2
+from src.models.losses import FastSpeech2Loss
 from src.trainer import Trainer
 from src.utils.utils import sequence_mask
 
@@ -19,19 +20,12 @@ def compute_masks(lengths):
     # B x T_in_max (boolean)
     masks = sequence_mask(lengths)
     return masks
-#prepare_meldata(data_dir)
-"""
-mel = np.load(os.path.join(data_dir, 'mels', 'LJ001-0001.npy'))
-print(mel.shape)
-plt.imshow(mel, cmap='hot', interpolation='nearest')
-plt.savefig('./tmp.png')
-"""
 
-cfg = PreprocessConfig()
+preproc_cfg = PreprocessConfig()
 model_cfg = ModelConfig()
 
 metadata_train = load_samples_fs(
-    cfg.preprocessed_path, 'train'
+    preproc_cfg.preprocessed_path, 'train'
 )
 
 train_ds = TTSDataset(metadata_train)
@@ -49,50 +43,26 @@ train_dl = DataLoader(
 for batch in train_dl:
     break 
 
-import torch
-device = torch.device('cpu')
+fastspeech = FastSpeech2(preproc_cfg, model_cfg)
+loss = FastSpeech2Loss()
 
-encoder = Encoder(
-    n_src_vocab=cfg.phoneme_vocab_size,
-    max_seq_len=model_cfg.max_seq_len,
-    n_layers=model_cfg.encoder_layer,
-    encoder_hidden_dim=model_cfg.encoder_hidden,
-    n_head=model_cfg.encoder_head,
-    conv_kernel_size=model_cfg.encoder_conv_kernel_size,
-    conv_filter_size=model_cfg.encoder_conv_filter_size,
-).to(device)
+o = fastspeech(batch['token_ids'],  batch['token_ids_lengths'], batch['mel_lengths'], batch['pitch'], batch['energy'], batch['duration'])
 
-vp = VariancePredictor(
-    input_dim=model_cfg.encoder_hidden,
-    conv_filter_size=model_cfg.variance_predictor_conv_filter_size,
-    conv_kernel_size=model_cfg.variance_predictor_conv_kernel_size,
-    dropout=model_cfg.variance_predictor_dropout
-).to(device)
+print('model_outputs', o['model_outputs'].shape)
+print('pitch_outputs', o['pitch_outputs'].shape)
+print('energy_outputs', o['energy_outputs'].shape)
+print('duration_outputs', o['duration_outputs'].shape)
+print('mel_masks', o['mel_masks'].shape)
 
-va = VarianceAdaptor(
-    input_dim=model_cfg.encoder_hidden,
-    conv_filter_size=model_cfg.variance_predictor_conv_filter_size,
-    conv_kernel_size=model_cfg.variance_predictor_conv_kernel_size,
-    dropout=model_cfg.variance_predictor_dropout,
-    pitch_scale=model_cfg.variance_predictor_pitch_scale,
-    energy_scale=model_cfg.variance_predictor_energy_scale,
-    n_bins=model_cfg.n_bins,
-    pitch_energy_stats_path=os.path.join(cfg.preprocessed_path, 'stats.json'),
-).to(device)
-
-
-tokens_mask = compute_masks(batch['token_ids_lengths']).to(device)
-
-o = encoder(batch['token_ids'].to(device), tokens_mask)
-#o = vp(o)
-#print(o.shape)
-duration = batch['duration'].to(device)
-max_mel_len = max(batch['mel_lengths']).item()
-pitch = batch['pitch']
-energy = batch['energy']
-
-print(o.shape, duration.shape, max_mel_len)
-
-
-o, log_duration_prediction, pitch_prediction, energy_prediction, mel_len = va(o, tokens_mask, max_mel_len, pitch, energy, duration)
-print(o.shape)
+loss(
+    mel_preds,
+    pitch_preds,
+    energy_preds,
+    log_duration_preds,
+    mel_targets,
+    pitch_targets,
+    energy_targets,
+    duration_targets,
+    src_masks,
+    mel_masks,
+)
